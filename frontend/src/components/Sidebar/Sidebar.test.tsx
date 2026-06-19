@@ -15,7 +15,7 @@ test("loads and renders sessions on mount", async () => {
     { id: "1", title: "Alpha", mode: "chat", created_at: "", updated_at: "" },
   ]);
   await act(async () => { render(<Sidebar />); });
-  expect(screen.getByText("Alpha")).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByText("Alpha")).toBeInTheDocument());
 });
 
 test("new session button creates and selects a session", async () => {
@@ -46,6 +46,7 @@ test("selecting a session loads its messages", async () => {
     messages: [{ role: "user", content: "hi" }],
   });
   await act(async () => { render(<Sidebar />); });
+  await waitFor(() => expect(screen.getByText("Alpha")).toBeInTheDocument());
   await userEvent.click(screen.getByText("Alpha"));
   await waitFor(() => expect(useStore.getState().activeSessionId).toBe("1"));
 });

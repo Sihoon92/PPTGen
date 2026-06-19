@@ -1,20 +1,20 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { createSession, getMessages, listSessions } from "../../api/client";
 import { useStore } from "../../store/store";
 import OllamaTestButton from "./OllamaTestButton";
 import SessionList from "./SessionList";
 
 export default function Sidebar() {
-  const [sessions, setSessions] = useState(useStore.getState().sessions);
-  const [activeSessionId, setActiveSessionId] = useState(
-    useStore.getState().activeSessionId,
-  );
+  const sessions = useStore((s) => s.sessions);
+  const activeSessionId = useStore((s) => s.activeSessionId);
+  const setSessions = useStore((s) => s.setSessions);
+  const setActiveSession = useStore((s) => s.setActiveSession);
+  const setMessages = useStore((s) => s.setMessages);
   const mountedRef = useRef(false);
 
   const refresh = async () => {
     const data = await listSessions();
     if (mountedRef.current) {
-      useStore.getState().setSessions(data);
       setSessions(data);
     }
   };
@@ -30,15 +30,13 @@ export default function Sidebar() {
   const onNew = async () => {
     const session = await createSession();
     await refresh();
-    useStore.getState().setActiveSession(session.id);
-    useStore.getState().setMessages([]);
-    setActiveSessionId(session.id);
+    setActiveSession(session.id);
+    setMessages([]);
   };
 
   const onSelect = async (id: string) => {
-    useStore.getState().setActiveSession(id);
-    setActiveSessionId(id);
-    useStore.getState().setMessages((await getMessages(id)).messages);
+    setActiveSession(id);
+    setMessages((await getMessages(id)).messages);
   };
 
   return (
