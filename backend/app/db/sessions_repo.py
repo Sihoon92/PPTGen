@@ -10,7 +10,7 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def _row_to_dict(row) -> dict:
+def _row_to_dict(row: tuple) -> dict:
     return {"id": row[0], "title": row[1], "mode": row[2],
             "created_at": row[3], "updated_at": row[4]}
 
