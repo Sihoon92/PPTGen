@@ -37,10 +37,14 @@ export async function streamChat(
       buffer = buffer.slice(sep + 2);
       const event = /event: (.*)/.exec(raw)?.[1]?.trim();
       const dataLine = /data: (.*)/.exec(raw)?.[1] ?? "{}";
-      const data = JSON.parse(dataLine);
-      if (event === "token") handlers.onToken(data.delta ?? "");
-      else if (event === "done") handlers.onDone();
-      else if (event === "error") handlers.onError(data.message ?? "unknown error");
+      try {
+        const data = JSON.parse(dataLine);
+        if (event === "token") handlers.onToken(data.delta ?? "");
+        else if (event === "done") handlers.onDone();
+        else if (event === "error") handlers.onError(data.message ?? "unknown error");
+      } catch {
+        handlers.onError(`Malformed SSE frame: ${raw}`);
+      }
     }
   }
 }
