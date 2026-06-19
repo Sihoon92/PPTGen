@@ -17,17 +17,16 @@ async def lifespan(app: FastAPI):
     await init_db(settings.app_db_path)
 
     cm = AsyncSqliteSaver.from_conn_string(settings.app_db_path)
-    checkpointer = await cm.__aenter__()
-    model = get_chat_model(settings)
-    graph = build_graph(model, checkpointer)
-
-    app.state.app_state = AppState(
-        graph=graph, db_path=settings.app_db_path, settings=settings, checkpointer_cm=cm
-    )
-    try:
+    async with cm as checkpointer:
+        model = get_chat_model(settings)
+        graph = build_graph(model, checkpointer)
+        app.state.app_state = AppState(
+            graph=graph,
+            db_path=settings.app_db_path,
+            settings=settings,
+            checkpointer_cm=cm,
+        )
         yield
-    finally:
-        await cm.__aexit__(None, None, None)
 
 
 def get_app_state(request: Request) -> AppState:
