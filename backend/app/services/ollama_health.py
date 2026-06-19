@@ -18,7 +18,7 @@ async def check_ollama(settings: Settings) -> dict:
                 "error": f"HTTP {resp.status_code}",
             }
         data = resp.json()
-        models = [m.get("name", "") for m in data.get("models", [])]
+        models = [m["name"] for m in data.get("models", []) if m.get("name")]
         return {"ok": True, "models": models, "error": None}
     except Exception as exc:  # noqa: BLE001 - surface any connectivity problem to the UI
         return {"ok": False, "models": [], "error": str(exc)}
