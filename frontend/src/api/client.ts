@@ -19,6 +19,7 @@ export function createSession(title?: string): Promise<Session> {
   }).then(json<Session>);
 }
 
+// Staged for a future session-management UI (not yet wired into a component in v1).
 export function renameSession(id: string, title: string): Promise<Session> {
   return fetch(`${BASE}/sessions/${id}`, {
     method: "PATCH",
@@ -27,6 +28,7 @@ export function renameSession(id: string, title: string): Promise<Session> {
   }).then(json<Session>);
 }
 
+// Staged for a future session-management UI (not yet wired into a component in v1).
 export async function deleteSession(id: string): Promise<void> {
   const res = await fetch(`${BASE}/sessions/${id}`, { method: "DELETE" });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
