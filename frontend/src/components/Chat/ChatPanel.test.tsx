@@ -38,6 +38,60 @@ test("mode toggle switches active mode", async () => {
   expect(useStore.getState().mode).toBe("ppt");
 });
 
+test("buffers tokens: shows loading and no partial text until done, then full content", async () => {
+  let finish!: () => void;
+  vi.spyOn(sse, "streamChat").mockImplementation((_s, _c, _m, h) => {
+    h.onToken("부분");
+    h.onToken(" 텍스트");
+    return new Promise<void>((resolve) => {
+      finish = () => {
+        h.onDone();
+        resolve();
+      };
+    });
+  });
+
+  render(<ChatPanel />);
+  await userEvent.type(screen.getByRole("textbox"), "hi");
+  await userEvent.click(screen.getByRole("button", { name: /전송/ }));
+
+  // 아직 onDone 전: 로딩 인디케이터 표시, 부분 텍스트는 화면에 없음.
+  await waitFor(() =>
+    expect(screen.getByRole("status", { name: "생각 중" })).toBeInTheDocument(),
+  );
+  expect(screen.queryByText(/부분 텍스트/)).toBeNull();
+
+  // onDone 후: 전체 내용이 한 번에 표시되고 로딩은 사라짐.
+  await act(async () => {
+    finish();
+  });
+  await waitFor(() => expect(screen.getByText(/부분 텍스트/)).toBeInTheDocument());
+  expect(screen.queryByRole("status")).toBeNull();
+});
+
+test("sending with no active session auto-creates one then streams", async () => {
+  useStore.setState({ activeSessionId: null, sessions: [] });
+  const createSpy = vi.spyOn(client, "createSession").mockResolvedValue({
+    id: "auto", title: "New chat", mode: "chat", created_at: "", updated_at: "",
+  });
+  vi.spyOn(client, "listSessions").mockResolvedValue([]);
+  vi.spyOn(sse, "streamChat").mockImplementation(async (sid, _content, _mode, h) => {
+    expect(sid).toBe("auto"); // streams against the freshly created session
+    h.onToken("yo");
+    h.onDone();
+  });
+
+  render(<ChatPanel />);
+  await userEvent.type(screen.getByRole("textbox"), "hello");
+  await act(async () => {
+    await userEvent.click(screen.getByRole("button", { name: /전송/ }));
+  });
+
+  await waitFor(() => expect(createSpy).toHaveBeenCalledTimes(1));
+  await waitFor(() => expect(useStore.getState().activeSessionId).toBe("auto"));
+  await waitFor(() => expect(screen.getByText("yo")).toBeInTheDocument());
+});
+
 test("onDone refreshes session list so auto-title appears in sidebar", async () => {
   const renamedSession = { id: "s1", title: "My first message", mode: "chat", created_at: "2024-01-01", updated_at: "2024-01-01" };
 

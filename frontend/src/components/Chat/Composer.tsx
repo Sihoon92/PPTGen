@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { listSessions } from "../../api/client";
+import { createSession, listSessions } from "../../api/client";
 import { streamChat } from "../../api/sse";
 import { useStore } from "../../store/store";
 
@@ -10,26 +10,45 @@ export default function Composer() {
   const activeSessionId = useStore((s) => s.activeSessionId);
   const appendUserMessage = useStore((s) => s.appendUserMessage);
   const startAssistantMessage = useStore((s) => s.startAssistantMessage);
-  const appendAssistantDelta = useStore((s) => s.appendAssistantDelta);
+  const setLastAssistantContent = useStore((s) => s.setLastAssistantContent);
   const setStreaming = useStore((s) => s.setStreaming);
   const setSessions = useStore((s) => s.setSessions);
+  const setActiveSession = useStore((s) => s.setActiveSession);
+  const setMessages = useStore((s) => s.setMessages);
 
   const onSend = async () => {
     const content = text.trim();
-    if (!content || streaming || !activeSessionId) return;
+    if (!content || streaming) return;
+
+    // 활성 세션이 없으면 자동으로 새 세션을 만든다 (바로 입력 → 전송이 동작하도록).
+    let sessionId = activeSessionId;
+    if (!sessionId) {
+      const session = await createSession();
+      sessionId = session.id;
+      setActiveSession(session.id);
+      setMessages([]);
+    }
+
     setText("");
     appendUserMessage(content);
     startAssistantMessage();
     setStreaming(true);
-    await streamChat(activeSessionId, content, mode, {
-      onToken: (d) => appendAssistantDelta(d),
+
+    // 스트리밍 중에는 화면에 부분 출력하지 않고 버퍼에 모았다가, 완료 시 한 번에 커밋한다.
+    // 그래야 응답 전체를 마크다운/다이어그램으로 깔끔하게 렌더할 수 있다.
+    let buffer = "";
+    await streamChat(sessionId, content, mode, {
+      onToken: (d) => {
+        buffer += d;
+      },
       onDone: () => {
+        setLastAssistantContent(buffer);
         setStreaming(false);
         // Refresh the session list so the auto-titled session appears in the sidebar.
         listSessions().then(setSessions).catch(() => {});
       },
       onError: (msg) => {
-        appendAssistantDelta(`\n[오류] ${msg}`);
+        setLastAssistantContent(buffer ? `${buffer}\n\n[오류] ${msg}` : `[오류] ${msg}`);
         setStreaming(false);
       },
     });

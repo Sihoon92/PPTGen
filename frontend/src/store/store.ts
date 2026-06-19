@@ -16,6 +16,7 @@ interface State {
   appendUserMessage: (content: string) => void;
   startAssistantMessage: () => void;
   appendAssistantDelta: (delta: string) => void;
+  setLastAssistantContent: (content: string) => void;
   setMode: (mode: Mode) => void;
   toggleArtifacts: () => void;
   setOllama: (health: OllamaHealth) => void;
@@ -44,6 +45,15 @@ export const useStore = create<State>((set) => ({
       const last = messages[messages.length - 1];
       if (last && last.role === "assistant") {
         messages[messages.length - 1] = { ...last, content: last.content + delta };
+      }
+      return { messages };
+    }),
+  setLastAssistantContent: (content) =>
+    set((s) => {
+      const messages = s.messages.slice();
+      const last = messages[messages.length - 1];
+      if (last && last.role === "assistant") {
+        messages[messages.length - 1] = { ...last, content };
       }
       return { messages };
     }),

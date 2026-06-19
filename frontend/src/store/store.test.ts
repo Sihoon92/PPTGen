@@ -22,6 +22,15 @@ test("assistant streaming accumulates deltas", () => {
   expect(msgs[msgs.length - 1]).toEqual({ role: "assistant", content: "Hello" });
 });
 
+test("setLastAssistantContent sets (not appends) the last assistant message", () => {
+  const s = useStore.getState();
+  s.startAssistantMessage();
+  s.appendAssistantDelta("ignored buffer");
+  useStore.getState().setLastAssistantContent("final content");
+  const msgs = useStore.getState().messages;
+  expect(msgs[msgs.length - 1]).toEqual({ role: "assistant", content: "final content" });
+});
+
 test("toggleArtifacts flips the flag", () => {
   useStore.getState().toggleArtifacts();
   expect(useStore.getState().artifactsOpen).toBe(true);
