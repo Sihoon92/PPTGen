@@ -9,6 +9,7 @@ def test_settings_defaults(monkeypatch):
     assert s.ollama_api_key == ""
     assert s.ollama_model == "gemma3n:e4b"
     assert s.app_db_path == "./app.db"
+    assert s.cors_origins == "http://localhost:5173"
 
 
 def test_settings_reads_env(monkeypatch):
