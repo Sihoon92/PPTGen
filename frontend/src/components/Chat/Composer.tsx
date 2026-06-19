@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { listSessions } from "../../api/client";
 import { streamChat } from "../../api/sse";
 import { useStore } from "../../store/store";
 
@@ -11,6 +12,7 @@ export default function Composer() {
   const startAssistantMessage = useStore((s) => s.startAssistantMessage);
   const appendAssistantDelta = useStore((s) => s.appendAssistantDelta);
   const setStreaming = useStore((s) => s.setStreaming);
+  const setSessions = useStore((s) => s.setSessions);
 
   const onSend = async () => {
     const content = text.trim();
@@ -21,7 +23,11 @@ export default function Composer() {
     setStreaming(true);
     await streamChat(activeSessionId, content, mode, {
       onToken: (d) => appendAssistantDelta(d),
-      onDone: () => setStreaming(false),
+      onDone: () => {
+        setStreaming(false);
+        // Refresh the session list so the auto-titled session appears in the sidebar.
+        listSessions().then(setSessions).catch(() => {});
+      },
       onError: (msg) => {
         appendAssistantDelta(`\n[오류] ${msg}`);
         setStreaming(false);
