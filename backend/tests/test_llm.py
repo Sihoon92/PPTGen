@@ -8,6 +8,7 @@ def test_get_chat_model_uses_settings():
     model = get_chat_model(s)
     assert model.model == "gemma3n:e4b"
     assert "localhost:11434" in model.base_url
+    assert model.client_kwargs is None
 
 
 def test_get_chat_model_sets_auth_header_when_key_present():
