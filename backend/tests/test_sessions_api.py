@@ -38,3 +38,15 @@ async def test_messages_empty_for_new_session(client):
     r = await client.get(f"/api/sessions/{sid}/messages")
     assert r.status_code == 200
     assert r.json()["messages"] == []
+
+
+@pytest.mark.asyncio
+async def test_delete_missing_returns_404(client):
+    r = await client.delete("/api/sessions/nonexistent-id")
+    assert r.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_messages_404_for_missing_session(client):
+    r = await client.get("/api/sessions/nonexistent-id/messages")
+    assert r.status_code == 404

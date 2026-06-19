@@ -1,4 +1,11 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 from langchain_core.messages import AIMessage, HumanMessage
+
+if TYPE_CHECKING:
+    from langgraph.graph.state import CompiledStateGraph
 
 
 def serialize_messages(messages: list) -> list[dict]:
@@ -15,7 +22,7 @@ def serialize_messages(messages: list) -> list[dict]:
     return out
 
 
-async def load_history(graph, session_id: str) -> list[dict]:
+async def load_history(graph: "CompiledStateGraph", session_id: str) -> list[dict]:
     cfg = {"configurable": {"thread_id": session_id}}
     snap = await graph.aget_state(cfg)
     messages = (snap.values or {}).get("messages", []) if snap else []
