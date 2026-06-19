@@ -1,5 +1,7 @@
 from langchain_core.language_models import BaseChatModel
+from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph import END, START, StateGraph
+from langgraph.graph.state import CompiledStateGraph
 
 from app.graph.nodes.chat import make_chat_node
 from app.graph.nodes.master import route_by_mode
@@ -12,7 +14,7 @@ async def _master_node(state: GraphState) -> dict:
     return {}
 
 
-def build_graph(model: BaseChatModel, checkpointer):
+def build_graph(model: BaseChatModel, checkpointer: BaseCheckpointSaver) -> CompiledStateGraph:
     sg = StateGraph(GraphState)
     sg.add_node("master", _master_node)
     sg.add_node("chat", make_chat_node(model))
