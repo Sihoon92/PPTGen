@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Response
 
 from app.api.messages_util import load_history
+from app.constants import DEFAULT_SESSION_TITLE
 from app.db import sessions_repo as repo
 from app.main import get_app_state
 from app.schemas import CreateSessionBody, RenameBody
@@ -11,7 +12,7 @@ router = APIRouter()
 
 @router.post("/sessions", status_code=201)
 async def create_session(body: CreateSessionBody, state: AppState = Depends(get_app_state)):
-    title = body.title or "New chat"
+    title = body.title or DEFAULT_SESSION_TITLE
     return await repo.create_session(state.db_path, title=title)
 
 
@@ -33,6 +34,12 @@ async def delete_session(session_id: str, state: AppState = Depends(get_app_stat
     deleted = await repo.delete_session(state.db_path, session_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="session not found")
+    # Purge the LangGraph checkpoint thread so no orphaned state remains.
+    # Guard against the checkpoints table not yet existing (no messages sent).
+    try:
+        await state.graph.checkpointer.adelete_thread(session_id)
+    except Exception:  # noqa: BLE001
+        pass
     return Response(status_code=204)
 
 

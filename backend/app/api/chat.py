@@ -3,6 +3,7 @@ from fastapi.responses import StreamingResponse
 from langchain_core.messages import HumanMessage
 
 from app.api.sse import format_sse
+from app.constants import DEFAULT_SESSION_TITLE
 from app.db import sessions_repo as repo
 from app.main import get_app_state
 from app.schemas import ChatBody
@@ -10,12 +11,10 @@ from app.state import AppState
 
 router = APIRouter()
 
-_DEFAULT_TITLE = "New chat"
-
 
 def _derive_title(text: str) -> str:
     text = text.strip().replace("\n", " ")
-    return (text[:40] + "…") if len(text) > 40 else (text or _DEFAULT_TITLE)
+    return (text[:40] + "…") if len(text) > 40 else (text or DEFAULT_SESSION_TITLE)
 
 
 @router.post("/sessions/{session_id}/chat")
@@ -24,7 +23,7 @@ async def chat(session_id: str, body: ChatBody, state: AppState = Depends(get_ap
     if session is None:
         raise HTTPException(status_code=404, detail="session not found")
 
-    if session["title"] == _DEFAULT_TITLE:
+    if session["title"] == DEFAULT_SESSION_TITLE:
         await repo.rename_session(state.db_path, session_id, _derive_title(body.content))
     else:
         await repo.touch_session(state.db_path, session_id)

@@ -24,7 +24,6 @@ async def lifespan(app: FastAPI):
             graph=graph,
             db_path=settings.app_db_path,
             settings=settings,
-            checkpointer_cm=cm,
         )
         yield
 
