@@ -23,7 +23,7 @@ export default function OllamaTestButton() {
       className="flex items-center gap-2 w-full rounded-md px-3 py-2 text-sm hover:bg-paper-dark"
     >
       <span data-testid="ollama-status" className={`h-2.5 w-2.5 rounded-full ${dotClass}`} />
-      Ollama 연결 테스트
+      LLM 연결 테스트
     </button>
   );
 }

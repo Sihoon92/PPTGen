@@ -47,7 +47,7 @@ def _slugify(title: str | None) -> str:
 
 def _tool_for(kind: str) -> str | None:
     if kind == "llm":
-        return get_settings().ollama_model
+        return get_settings().active_model
     if kind == "render":
         return "Node/PptxGenJS"
     if kind == "code":

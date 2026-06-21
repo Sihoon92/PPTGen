@@ -18,3 +18,31 @@ def test_settings_reads_env(monkeypatch):
     s = Settings(_env_file=None)
     assert s.ollama_model == "custom:tag"
     assert s.ollama_api_key == "secret"
+
+
+def test_llm_backend_defaults_to_ollama(monkeypatch):
+    monkeypatch.delenv("LLM_BACKEND", raising=False)
+    s = Settings(_env_file=None)
+    assert s.llm_backend == "ollama"
+    assert s.internal_llm_base_url == ""
+    assert s.internal_llm_api_key == ""
+    assert s.internal_llm_model == ""
+
+
+def test_internal_llm_reads_env(monkeypatch):
+    monkeypatch.setenv("LLM_BACKEND", "internal")
+    monkeypatch.setenv("INTERNAL_LLM_BASE_URL", "https://llm.corp.com/v1")
+    monkeypatch.setenv("INTERNAL_LLM_API_KEY", "corp-key")
+    monkeypatch.setenv("INTERNAL_LLM_MODEL", "corp-gpt")
+    s = Settings(_env_file=None)
+    assert s.llm_backend == "internal"
+    assert s.internal_llm_base_url == "https://llm.corp.com/v1"
+    assert s.internal_llm_api_key == "corp-key"
+    assert s.internal_llm_model == "corp-gpt"
+
+
+def test_active_model_follows_backend():
+    ollama = Settings(_env_file=None, ollama_model="gemma3n:e4b")
+    assert ollama.active_model == "gemma3n:e4b"
+    internal = Settings(_env_file=None, llm_backend="internal", internal_llm_model="corp-gpt")
+    assert internal.active_model == "corp-gpt"

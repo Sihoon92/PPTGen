@@ -32,7 +32,7 @@ test("ollama test button shows green dot on success", async () => {
   vi.spyOn(client, "listSessions").mockResolvedValue([]);
   vi.spyOn(client, "checkOllama").mockResolvedValue({ ok: true, models: ["gemma3n:e4b"], error: null });
   await act(async () => { render(<Sidebar />); });
-  await userEvent.click(screen.getByRole("button", { name: /Ollama 연결 테스트/ }));
+  await userEvent.click(screen.getByRole("button", { name: /LLM 연결 테스트/ }));
   await waitFor(() =>
     expect(screen.getByTestId("ollama-status").className).toContain("bg-green-500"),
   );

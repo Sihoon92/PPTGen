@@ -44,14 +44,34 @@ def _backend_python() -> str:
     return sys.executable
 
 
-def start_backend() -> subprocess.Popen:
+def _parse_llm_backend(argv: list[str]) -> str | None:
+    """CLI 인자에서 LLM 백엔드를 읽는다.
+
+    지원: `python dev.py internal` / `python dev.py ollama`
+          `python dev.py --llm internal`
+    인자가 없으면 None 을 반환하고, 백엔드는 .env 의 LLM_BACKEND(없으면 ollama)를 쓴다.
+    """
+    valid = {"ollama", "internal"}
+    for i, a in enumerate(argv):
+        if a == "--llm" and i + 1 < len(argv):
+            return argv[i + 1]
+        if a in valid:
+            return a
+    return None
+
+
+def start_backend(llm_backend: str | None = None) -> subprocess.Popen:
     # --reload-dir 로 app/ 만 감시 (app.db 변경에 의한 재시작 폭주 방지)
+    env = os.environ.copy()
+    if llm_backend:
+        env["LLM_BACKEND"] = llm_backend
     return subprocess.Popen(
         [_backend_python(), "-m", "uvicorn", "app.main:app",
          "--host", "127.0.0.1", "--port", "8000",
          "--reload", "--reload-dir", str(BACKEND / "app")],
         cwd=str(BACKEND),
         creationflags=_CREATE_GROUP,
+        env=env,
     )
 
 
@@ -95,12 +115,16 @@ def stop_all() -> None:
 
 
 def main() -> None:
+    llm_backend = _parse_llm_backend(sys.argv[1:])
+    backend_label = llm_backend or "(.env: LLM_BACKEND, 기본 ollama)"
+
     print("PPTGen 시작 중... (핫리로드 ON)")
     print("  backend  -> http://localhost:8000  (app/ 변경 시 자동 재시작)")
     print("  frontend -> http://localhost:5173  (HMR)")
-    print("  (전제: Ollama 실행 중 + backend/.env 의 OLLAMA_MODEL 설정)\n")
+    print(f"  LLM 백엔드 -> {backend_label}")
+    print("  (전제: ollama -> Ollama 실행 중 / internal -> backend/.env 의 INTERNAL_LLM_* 설정)\n")
 
-    procs.append(start_backend())
+    procs.append(start_backend(llm_backend))
     procs.append(start_frontend())
 
     backend_ok = wait_for(BACKEND_URL, "backend")
