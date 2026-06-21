@@ -15,6 +15,8 @@ class Settings(BaseSettings):
     internal_llm_base_url: str = ""
     internal_llm_api_key: str = ""
     internal_llm_model: str = ""
+    # 사내 프록시 우회: true 면 startup 에서 HTTP(S)_PROXY 환경변수를 비워 직접 연결한다
+    bypass_proxy: bool = False
     app_db_path: str = "./app.db"
     cors_origins: str = "http://localhost:5173"
     # PPT generation
