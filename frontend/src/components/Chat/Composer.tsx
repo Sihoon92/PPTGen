@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { createSession, listSessions } from "../../api/client";
-import { streamChat } from "../../api/sse";
+import { createSession } from "../../api/client";
+import { sendMessage } from "../../api/chatRunner";
 import { useStore } from "../../store/store";
 
 export default function Composer() {
@@ -8,11 +8,6 @@ export default function Composer() {
   const mode = useStore((s) => s.mode);
   const streaming = useStore((s) => s.streaming);
   const activeSessionId = useStore((s) => s.activeSessionId);
-  const appendUserMessage = useStore((s) => s.appendUserMessage);
-  const startAssistantMessage = useStore((s) => s.startAssistantMessage);
-  const setLastAssistantContent = useStore((s) => s.setLastAssistantContent);
-  const setStreaming = useStore((s) => s.setStreaming);
-  const setSessions = useStore((s) => s.setSessions);
   const setActiveSession = useStore((s) => s.setActiveSession);
   const setMessages = useStore((s) => s.setMessages);
 
@@ -30,28 +25,7 @@ export default function Composer() {
     }
 
     setText("");
-    appendUserMessage(content);
-    startAssistantMessage();
-    setStreaming(true);
-
-    // 스트리밍 중에는 화면에 부분 출력하지 않고 버퍼에 모았다가, 완료 시 한 번에 커밋한다.
-    // 그래야 응답 전체를 마크다운/다이어그램으로 깔끔하게 렌더할 수 있다.
-    let buffer = "";
-    await streamChat(sessionId, content, mode, {
-      onToken: (d) => {
-        buffer += d;
-      },
-      onDone: () => {
-        setLastAssistantContent(buffer);
-        setStreaming(false);
-        // Refresh the session list so the auto-titled session appears in the sidebar.
-        listSessions().then(setSessions).catch(() => {});
-      },
-      onError: (msg) => {
-        setLastAssistantContent(buffer ? `${buffer}\n\n[오류] ${msg}` : `[오류] ${msg}`);
-        setStreaming(false);
-      },
-    });
+    await sendMessage(sessionId, content, mode);
   };
 
   return (

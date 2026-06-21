@@ -12,3 +12,7 @@ class RenameBody(BaseModel):
 class ChatBody(BaseModel):
     content: str
     mode: str = "chat"
+
+
+class ResumeBody(BaseModel):
+    answer: str

@@ -4,7 +4,6 @@ from langchain_core.messages import HumanMessage
 from langgraph.checkpoint.memory import InMemorySaver
 
 from app.graph.builder import build_graph
-from app.graph.nodes.ppt import PPT_STUB_MESSAGE
 
 
 def _fake_model(text="hi from fake"):
@@ -22,13 +21,28 @@ async def test_graph_chat_mode_calls_llm():
 
 
 @pytest.mark.asyncio
-async def test_graph_ppt_mode_returns_stub():
-    graph = build_graph(_fake_model(), InMemorySaver())
+async def test_graph_ppt_mode_generates_deck(monkeypatch):
+    import app.graph.nodes.ppt_nodes.stages as stages
+    from app.ppt.renderer import RenderResult
+
+    async def _render(layout_irs, theme, out_path, node_bin="node"):
+        return RenderResult(ok=True, out_path=out_path, slide_count=len(layout_irs))
+
+    monkeypatch.setattr(stages, "render_deck", _render)
+
+    deck_spec = '{"title":"T","audience":"a","goal":"g","tone":"executive","narrative":["x"]}'
+    deck_dsl = (
+        '[{"slide_id":"s1","role":"content","intent":"i","title":"Slide",'
+        '"layout":{"id":"root","type":"text","content":{"text":"hi"}}}]'
+    )
+    model = GenericFakeChatModel(messages=iter([deck_spec, deck_dsl]))
+    graph = build_graph(model, InMemorySaver())
     cfg = {"configurable": {"thread_id": "t2"}}
     out = await graph.ainvoke(
-        {"messages": [HumanMessage("slides")], "mode": "ppt", "session_id": "t2"}, cfg
+        {"messages": [HumanMessage("make slides about our Q3 results please")],
+         "mode": "ppt", "session_id": "t2"}, cfg
     )
-    assert out["messages"][-1].content == PPT_STUB_MESSAGE
+    assert "생성" in out["messages"][-1].content
 
 
 @pytest.mark.asyncio

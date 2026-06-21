@@ -1,5 +1,5 @@
 import { expect, test, vi } from "vitest";
-import { streamChat } from "./sse";
+import { resumeChat, streamChat } from "./sse";
 
 function streamFromString(s: string): ReadableStream<Uint8Array> {
   const bytes = new TextEncoder().encode(s);
@@ -34,6 +34,57 @@ test("streamChat reassembles a frame split across two chunks", async () => {
   });
   expect(tokens.join("")).toBe("Hello");
   expect(done).toBe(true);
+});
+
+test("streamChat dispatches interrupt events (PPT mode)", async () => {
+  const sse =
+    'event: interrupt\ndata: {"interrupt": {"question": "누구 대상인가요?", "field": "audience"}}\n\n' +
+    'event: done\ndata: {"session_id": "s1"}\n\n';
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, body: streamFromString(sse) }));
+  let question = "";
+  await streamChat("s1", "slides", "ppt", {
+    onToken: () => {},
+    onDone: () => {},
+    onError: () => {},
+    onInterrupt: (p) => (question = p.question),
+  });
+  expect(question).toBe("누구 대상인가요?");
+});
+
+test("streamChat dispatches node trace events", async () => {
+  const sse =
+    'event: node\ndata: {"node": "dsl_planner", "label": "슬라이드 DSL 생성", "kind": "llm", "tool": "gemma3n:e4b", "step": 3, "status": "running"}\n\n' +
+    'event: node\ndata: {"node": "dsl_planner", "label": "슬라이드 DSL 생성", "kind": "llm", "tool": "gemma3n:e4b", "step": 3, "status": "done", "summary": "슬라이드 2개 생성", "output": {"raw_deck": []}}\n\n' +
+    'event: done\ndata: {"session_id": "s1"}\n\n';
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, body: streamFromString(sse) }));
+  const statuses: string[] = [];
+  await streamChat("s1", "slides", "ppt", {
+    onToken: () => {},
+    onDone: () => {},
+    onError: () => {},
+    onNode: (e) => statuses.push(`${e.node}:${e.status}`),
+  });
+  expect(statuses).toEqual(["dsl_planner:running", "dsl_planner:done"]);
+});
+
+test("resumeChat posts to /resume and dispatches artifact events", async () => {
+  const sse =
+    'event: artifact\ndata: {"artifact": {"id": "abc", "filename": "deck.pptx", "slide_count": 3, "download_url": "/api/artifacts/abc"}}\n\n' +
+    'event: done\ndata: {"session_id": "s1"}\n\n';
+  const fetchMock = vi.fn().mockResolvedValue({ ok: true, body: streamFromString(sse) });
+  vi.stubGlobal("fetch", fetchMock);
+  let artifactId = "";
+  await resumeChat("s1", "임원 대상", {
+    onToken: () => {},
+    onDone: () => {},
+    onError: () => {},
+    onArtifact: (a) => (artifactId = a.id),
+  });
+  expect(artifactId).toBe("abc");
+  expect(fetchMock).toHaveBeenCalledWith(
+    "/api/sessions/s1/resume",
+    expect.objectContaining({ method: "POST" }),
+  );
 });
 
 test("streamChat calls onError for a malformed data frame", async () => {

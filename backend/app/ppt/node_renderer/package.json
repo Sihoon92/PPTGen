@@ -1,0 +1,14 @@
+{
+  "name": "pptgen-node-renderer",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Layout IR -> .pptx renderer (PptxGenJS sidecar). Reads a job on stdin, writes JSON result to stdout.",
+  "main": "render.mjs",
+  "scripts": {
+    "render": "node render.mjs"
+  },
+  "dependencies": {
+    "pptxgenjs": "^3.12.0"
+  }
+}

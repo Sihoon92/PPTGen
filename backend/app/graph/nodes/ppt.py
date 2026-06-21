@@ -1,22 +1,46 @@
-from langchain_core.messages import AIMessage
+"""PPT subgraph assembly — supervisor hub + three work nodes.
+
+    START → supervisor ─route─▶ dsl ──────┐
+                │        ─route─▶ compiler─┤  (each stage returns to supervisor)
+                │        ─route─▶ render ──┘
+                └──────── route=end ─▶ END
+
+The supervisor picks the next hop each visit; ``dsl → compiler → render`` runs by a
+forward pointer (see ``ppt_nodes/supervisor.py``). Stages reuse the deterministic
+domain logic in ``app/ppt/*`` (``ppt_nodes/stages.py``).
+
+Compiled WITHOUT a checkpointer — the parent graph's AsyncSqliteSaver owns
+persistence across the subgraph boundary.
+"""
+
+from langchain_core.language_models import BaseChatModel
 from langgraph.graph import END, START, StateGraph
+from langgraph.graph.state import CompiledStateGraph
 
-from app.graph.state import GraphState
-
-PPT_STUB_MESSAGE = (
-    "PPT 생성 기능은 아직 준비 중입니다. 곧 슬라이드를 자동으로 만들어 드릴게요. "
-    "지금은 'Chat' 모드에서 대화를 이어가실 수 있어요."
+from app.graph.nodes.ppt_nodes.stages import compiler_node, make_dsl_node, render_node
+from app.graph.nodes.ppt_nodes.supervisor import (
+    make_supervisor_node,
+    route_from_supervisor,
 )
+from app.graph.state import PptState
 
 
-async def _ppt_stub_node(state: GraphState) -> dict:
-    return {"messages": [AIMessage(content=PPT_STUB_MESSAGE)]}
+def build_ppt_subgraph(model: BaseChatModel) -> CompiledStateGraph:
+    sg = StateGraph(PptState)
 
+    sg.add_node("supervisor", make_supervisor_node(model))
+    sg.add_node("dsl", make_dsl_node(model))
+    sg.add_node("compiler", compiler_node)
+    sg.add_node("render", render_node)
 
-def build_ppt_subgraph():
-    """Single-node stub. Extension point: add outline -> design -> build nodes later."""
-    sg = StateGraph(GraphState)
-    sg.add_node("ppt_stub", _ppt_stub_node)
-    sg.add_edge(START, "ppt_stub")
-    sg.add_edge("ppt_stub", END)
+    sg.add_edge(START, "supervisor")
+    sg.add_conditional_edges(
+        "supervisor",
+        route_from_supervisor,
+        {"dsl": "dsl", "compiler": "compiler", "render": "render", "end": END},
+    )
+    sg.add_edge("dsl", "supervisor")
+    sg.add_edge("compiler", "supervisor")
+    sg.add_edge("render", "supervisor")
+
     return sg.compile()

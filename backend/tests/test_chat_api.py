@@ -63,15 +63,17 @@ async def test_chat_streams_tokens_and_done(client):
 
 
 @pytest.mark.asyncio
-async def test_chat_ppt_mode_streams_stub(client):
+async def test_chat_ppt_mode_streams_terminal_event(client):
+    # The fake model emits non-JSON, so the PPT pipeline degrades gracefully and
+    # still terminates the stream. (A full happy-path PPT API test lives in
+    # test_ppt_api.py with a mocked renderer.)
     sid = (await client.post("/api/sessions", json={})).json()["id"]
     async with client.stream(
         "POST", f"/api/sessions/{sid}/chat", json={"content": "slides", "mode": "ppt"}
     ) as resp:
+        assert resp.status_code == 200
         body = "".join([c async for c in resp.aiter_text()])
-    assert "event: token" in body
-    assert "준비 중" in body
-    assert "event: done" in body
+    assert ("event: done" in body) or ("event: error" in body)
 
 
 @pytest.mark.asyncio

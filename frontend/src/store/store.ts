@@ -1,5 +1,13 @@
 import { create } from "zustand";
-import type { ChatMessage, Mode, OllamaHealth, Session } from "../types";
+import type {
+  Artifact,
+  ChatMessage,
+  Mode,
+  OllamaHealth,
+  PendingInterrupt,
+  Session,
+  TraceEntry,
+} from "../types";
 
 interface State {
   sessions: Session[];
@@ -9,6 +17,9 @@ interface State {
   artifactsOpen: boolean;
   ollama: OllamaHealth | null;
   streaming: boolean;
+  pendingInterrupt: PendingInterrupt | null;
+  currentArtifact: Artifact | null;
+  trace: TraceEntry[];
 
   setSessions: (s: Session[]) => void;
   setActiveSession: (id: string | null) => void;
@@ -19,8 +30,13 @@ interface State {
   setLastAssistantContent: (content: string) => void;
   setMode: (mode: Mode) => void;
   toggleArtifacts: () => void;
+  setArtifactsOpen: (v: boolean) => void;
   setOllama: (health: OllamaHealth) => void;
   setStreaming: (v: boolean) => void;
+  setPendingInterrupt: (i: PendingInterrupt | null) => void;
+  setArtifact: (a: Artifact | null) => void;
+  addTraceEntry: (e: TraceEntry) => void;
+  clearTrace: () => void;
 }
 
 export const useStore = create<State>((set) => ({
@@ -31,6 +47,9 @@ export const useStore = create<State>((set) => ({
   artifactsOpen: false,
   ollama: null,
   streaming: false,
+  pendingInterrupt: null,
+  currentArtifact: null,
+  trace: [],
 
   setSessions: (sessions) => set({ sessions }),
   setActiveSession: (activeSessionId) => set({ activeSessionId }),
@@ -59,6 +78,19 @@ export const useStore = create<State>((set) => ({
     }),
   setMode: (mode) => set({ mode }),
   toggleArtifacts: () => set((s) => ({ artifactsOpen: !s.artifactsOpen })),
+  setArtifactsOpen: (artifactsOpen) => set({ artifactsOpen }),
   setOllama: (ollama) => set({ ollama }),
   setStreaming: (streaming) => set({ streaming }),
+  setPendingInterrupt: (pendingInterrupt) => set({ pendingInterrupt }),
+  setArtifact: (currentArtifact) => set({ currentArtifact }),
+  // Upsert by (node, step): a node's "running" entry is replaced by its "done"/"error".
+  addTraceEntry: (e) =>
+    set((s) => {
+      const i = s.trace.findIndex((t) => t.node === e.node && t.step === e.step);
+      if (i === -1) return { trace: [...s.trace, e] };
+      const trace = s.trace.slice();
+      trace[i] = e;
+      return { trace };
+    }),
+  clearTrace: () => set({ trace: [] }),
 }));

@@ -18,7 +18,7 @@ def build_graph(model: BaseChatModel, checkpointer: BaseCheckpointSaver) -> Comp
     sg = StateGraph(GraphState)
     sg.add_node("master", _master_node)
     sg.add_node("chat", make_chat_node(model))
-    sg.add_node("ppt", build_ppt_subgraph())
+    sg.add_node("ppt", build_ppt_subgraph(model))
 
     sg.add_edge(START, "master")
     sg.add_conditional_edges("master", route_by_mode, {"chat": "chat", "ppt": "ppt"})

@@ -1,6 +1,7 @@
 import ModeToggle from "./ModeToggle";
 import MessageList from "./MessageList";
 import Composer from "./Composer";
+import InterruptPrompt from "./InterruptPrompt";
 import { useStore } from "../../store/store";
 
 export default function ChatPanel() {
@@ -12,6 +13,7 @@ export default function ChatPanel() {
         <ModeToggle />
       </div>
       <MessageList messages={messages} streaming={streaming} />
+      <InterruptPrompt />
       <Composer />
     </div>
   );

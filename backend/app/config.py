@@ -11,6 +11,9 @@ class Settings(BaseSettings):
     ollama_model: str = "gemma3n:e4b"
     app_db_path: str = "./app.db"
     cors_origins: str = "http://localhost:5173"
+    # PPT generation
+    node_bin: str = "node"
+    artifacts_dir: str = "./artifacts"
 
     @property
     def cors_origin_list(self) -> list[str]:

@@ -47,10 +47,11 @@ def create_app() -> FastAPI:
         return {"status": "ok"}
 
     # routers registered in later tasks
-    from app.api import health, sessions, chat
+    from app.api import artifacts, health, sessions, chat
     app.include_router(health.router, prefix="/api")
     app.include_router(sessions.router, prefix="/api")
     app.include_router(chat.router, prefix="/api")
+    app.include_router(artifacts.router, prefix="/api")
 
     return app
 
