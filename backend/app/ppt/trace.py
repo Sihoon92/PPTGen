@@ -31,6 +31,17 @@ NODE_META: dict[str, tuple[str, str]] = {
 }
 
 
+def label_config(config: dict | None, label: str) -> dict:
+    """Return a copy of ``config`` with ``metadata.trace_label`` set.
+
+    Used by LLM-calling nodes so the callback handler can name each call
+    (e.g. ``deck_spec`` vs ``slide_planner``) without mutating the caller's config.
+    """
+    config = config or {}
+    metadata = {**(config.get("metadata") or {}), "trace_label": label}
+    return {**config, "metadata": metadata}
+
+
 def _slugify(title: str | None) -> str:
     """Turn a session title into a filesystem-safe filename fragment.
 
@@ -101,6 +112,12 @@ class TraceWriter:
         self.run_id = uuid4().hex
         self.started_at = datetime.now()
         self.events: list[dict] = []
+        self.llm_calls: list[dict] = []
+        self.render: dict | None = None
+
+    def add_llm_call(self, record: dict) -> None:
+        """Append one LLM-call record (from TracingCallbackHandler)."""
+        self.llm_calls.append(record)
 
     def handle(self, namespace: tuple, data: dict) -> dict | None:
         """Translate one debug-stream item into a trace event (or None to skip)."""
@@ -142,6 +159,14 @@ class TraceWriter:
             event["output"] = _safe(out)
             if error:
                 event["error"] = str(error)
+            if name == "render":
+                report = out.get("render_report")
+                if isinstance(report, dict):
+                    self.render = report
+                # render_node never raises; it returns an apology + issues. Mark the
+                # event as an error when no artifact was produced so the trace reflects it.
+                if not error and not out.get("artifact"):
+                    event["status"] = "error"
         self.events.append(event)
         return event
 
@@ -149,19 +174,27 @@ class TraceWriter:
         if not self.events:
             return
         try:
-            base = Path(get_settings().artifacts_dir) / self.session_id
+            settings = get_settings()
+            base = Path(settings.artifacts_dir) / self.session_id
             base.mkdir(parents=True, exist_ok=True)
             payload = {
                 "session_id": self.session_id,
                 "run_id": self.run_id,
+                "title": self.title,
+                "started_at": self.started_at.isoformat(timespec="seconds"),
+                "ended_at": datetime.now().isoformat(timespec="seconds"),
+                "backend": settings.llm_backend,
+                "model": settings.active_model,
+                "ok": self._ok(),
                 "events": self.events,
+                "llm_calls": self.llm_calls,
+                "render": self.render,
             }
             text = json.dumps(payload, ensure_ascii=False, indent=2)
             (base / f"trace_{self.run_id}.json").write_text(text, encoding="utf-8")
             (base / "trace_latest.json").write_text(text, encoding="utf-8")
 
-            # Human-findable copies: flat ``traces/`` dir with readable filenames.
-            traces = Path(get_settings().artifacts_dir) / "traces"
+            traces = Path(settings.artifacts_dir) / "traces"
             traces.mkdir(parents=True, exist_ok=True)
             fname = (
                 f"{self.started_at:%Y%m%d-%H%M%S}"
@@ -171,3 +204,11 @@ class TraceWriter:
             (traces / "latest.json").write_text(text, encoding="utf-8")
         except Exception:  # noqa: BLE001 - tracing must never break the response
             pass
+
+    def _ok(self) -> bool:
+        """Whole-run success: no error node events, and render (if attempted) succeeded."""
+        if any(e.get("status") == "error" for e in self.events):
+            return False
+        if self.render is not None:
+            return bool(self.render.get("ok"))
+        return True
