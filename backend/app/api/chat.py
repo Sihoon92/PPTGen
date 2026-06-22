@@ -11,7 +11,7 @@ from app.api.sse import format_sse
 from app.constants import DEFAULT_SESSION_TITLE
 from app.db import sessions_repo as repo
 from app.main import get_app_state
-from app.ppt.trace import TraceWriter
+from app.ppt.trace import TraceWriter, TracingCallbackHandler
 from app.schemas import ChatBody, ResumeBody
 from app.state import AppState
 
@@ -38,6 +38,12 @@ async def stream_graph(
     - ``done`` / ``error``: terminal
     """
     tracer = TraceWriter(session_id, title)
+    handler = TracingCallbackHandler(tracer)
+    cfg = {
+        **cfg,
+        "callbacks": [handler],
+        "configurable": {**(cfg.get("configurable") or {}), "trace_run_id": tracer.run_id},
+    }
     streamed_chat = False
     artifact_sent = False
     interrupt_sent = False

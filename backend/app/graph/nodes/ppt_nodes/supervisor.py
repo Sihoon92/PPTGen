@@ -16,9 +16,11 @@ from typing import Awaitable, Callable
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage
+from langchain_core.runnables import RunnableConfig
 
 from app.graph.state import PptState
 from app.ppt.prompts import SUPERVISOR_INTENT_PROMPT
+from app.ppt.trace import label_config
 
 SupervisorNode = Callable[[PptState], Awaitable[dict]]
 
@@ -51,11 +53,12 @@ def _reset_from(idx: int) -> dict:
     return resets
 
 
-async def _classify_intent(model: BaseChatModel, request: str) -> str:
+async def _classify_intent(model: BaseChatModel, request: str, config: RunnableConfig = None) -> str:
     """Edit request → start stage. Safe fallback to ``dsl`` (full regenerate)."""
     try:
         resp = await model.ainvoke(
-            [HumanMessage(content=SUPERVISOR_INTENT_PROMPT.format(request=request))]
+            [HumanMessage(content=SUPERVISOR_INTENT_PROMPT.format(request=request))],
+            label_config(config, "intent_classify"),
         )
         word = str(getattr(resp, "content", "")).strip().lower()
         for stage in STAGES:
@@ -72,7 +75,7 @@ def route_from_supervisor(state: PptState) -> str:
 
 
 def make_supervisor_node(model: BaseChatModel) -> SupervisorNode:
-    async def supervisor(state: PptState) -> dict:
+    async def supervisor(state: PptState, config: RunnableConfig = None) -> dict:
         step = state.get("step_count", 0) + 1
         if step > MAX_STEPS:
             return {"route": "end", "step_count": step}
@@ -83,7 +86,7 @@ def make_supervisor_node(model: BaseChatModel) -> SupervisorNode:
         if humans > handled:
             # New user turn: pick the start stage, reset its downstream outputs.
             if state.get("output_path"):
-                start = await _classify_intent(model, _last_human(state))
+                start = await _classify_intent(model, _last_human(state), config)
             else:
                 start = "dsl"
             idx = STAGES.index(start)

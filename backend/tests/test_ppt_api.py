@@ -25,7 +25,7 @@ async def client(tmp_path, monkeypatch):
     monkeypatch.setenv("ARTIFACTS_DIR", str(tmp_path / "artifacts"))
     get_settings.cache_clear()
 
-    async def _render(layout_irs, theme, out_path, node_bin="node"):
+    async def _render(layout_irs, theme, out_path, node_bin="node", job_dump_path=None):
         return RenderResult(ok=True, out_path=out_path, slide_count=len(layout_irs))
 
     monkeypatch.setattr(stages, "render_deck", _render)

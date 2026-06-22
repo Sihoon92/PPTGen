@@ -20,6 +20,7 @@ from uuid import uuid4
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.runnables import RunnableConfig
 
 from app.config import get_settings
 from app.graph.state import PptState
@@ -28,6 +29,7 @@ from app.ppt.dsl import DeckSpec, Issue, SlideDSL
 from app.ppt.extract import JsonExtractError, extract_json
 from app.ppt.prompts import DECK_SPEC_PROMPT, DSL_PLANNER_PROMPT, PRIMITIVE_CATALOG
 from app.ppt.renderer import render_deck
+from app.ppt.trace import label_config
 from app.ppt.theme import resolve_theme
 from app.ppt.validator import validate_deck
 
@@ -53,11 +55,14 @@ def make_dsl_node(model: BaseChatModel) -> PptNode:
     one for the deck plan, one for the slide layouts. Both fall back gracefully.
     """
 
-    async def dsl(state: PptState) -> dict:
+    async def dsl(state: PptState, config: RunnableConfig) -> dict:
         brief = _last_human(state)
 
         # 1) Deck plan.
-        resp = await model.ainvoke([HumanMessage(content=DECK_SPEC_PROMPT.format(brief=brief))])
+        resp = await model.ainvoke(
+            [HumanMessage(content=DECK_SPEC_PROMPT.format(brief=brief))],
+            label_config(config, "deck_spec"),
+        )
         try:
             spec = DeckSpec.model_validate(extract_json(resp.content))
         except (JsonExtractError, ValueError):
@@ -74,7 +79,9 @@ def make_dsl_node(model: BaseChatModel) -> PptNode:
             catalog=PRIMITIVE_CATALOG,
             deck_spec=json.dumps(spec.model_dump(), ensure_ascii=False),
         )
-        resp = await model.ainvoke([HumanMessage(content=prompt)])
+        resp = await model.ainvoke(
+            [HumanMessage(content=prompt)], label_config(config, "slide_planner")
+        )
         try:
             raw = extract_json(resp.content)
         except JsonExtractError:
@@ -109,31 +116,54 @@ def compiler_node(state: PptState) -> dict:
     return {"theme": theme, "layout_irs": irs}
 
 
-async def render_node(state: PptState) -> dict:
+async def render_node(state: PptState, config: RunnableConfig = None) -> dict:
     """Layout IR → .pptx via the Node sidecar, plus the artifact + user-facing message.
 
-    Absorbs the former renderer + finalize nodes. On no-slides/failure, returns an
+    Records a ``render_report`` (ok/job_file/error/stack/stderr) into the state delta so
+    the TraceWriter can surface render diagnostics. On no-slides/failure, returns an
     apology message and no ``output_path`` so the supervisor ends the turn.
     """
     settings = get_settings()
+    session_id = state.get("session_id") or "session"
+    run_id = ((config or {}).get("configurable") or {}).get("trace_run_id") or uuid4().hex
+
     layout_irs = state.get("layout_irs", []) or []
     if not layout_irs:
         issues = list(state.get("issues", []) or [])
         issues.append(Issue(stage="render", code="no_slides",
                             message="no slides available to render").model_dump())
-        return {"issues": issues, "messages": [AIMessage(content=_FAIL_MSG)]}
+        return {
+            "issues": issues,
+            "messages": [AIMessage(content=_FAIL_MSG)],
+            "render_report": {"attempted": False, "ok": False, "error": "no slides"},
+        }
 
-    session_id = state.get("session_id") or "session"
     artifact_id = uuid4().hex
     out_path = os.path.join(settings.artifacts_dir, session_id, f"deck_{artifact_id}.pptx")
+    job_dump_path = os.path.join(settings.artifacts_dir, session_id, f"render_job_{run_id}.json")
     result = await render_deck(
-        layout_irs, state.get("theme") or resolve_theme(), out_path, settings.node_bin
+        layout_irs, state.get("theme") or resolve_theme(), out_path,
+        settings.node_bin, job_dump_path=job_dump_path,
     )
+    render_report = {
+        "attempted": True,
+        "ok": result.ok,
+        "job_file": os.path.basename(job_dump_path),
+        "slide_count": result.slide_count or len(layout_irs),
+        "out_path": out_path,
+        "error": result.error,
+        "stack": result.stack,
+        "stderr": result.stderr,
+    }
     if not result.ok:
         issues = list(state.get("issues", []) or [])
         issues.append(Issue(stage="render", code="render_failed",
                             message=result.error or "render failed").model_dump())
-        return {"issues": issues, "messages": [AIMessage(content=_FAIL_MSG)]}
+        return {
+            "issues": issues,
+            "messages": [AIMessage(content=_FAIL_MSG)],
+            "render_report": render_report,
+        }
 
     slide_count = len(layout_irs)
     title = (state.get("deck_spec") or {}).get("title", "발표 자료")
@@ -149,4 +179,5 @@ async def render_node(state: PptState) -> dict:
         "artifact_id": artifact_id,
         "artifact": artifact,
         "messages": [AIMessage(content=msg)],
+        "render_report": render_report,
     }

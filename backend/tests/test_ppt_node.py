@@ -20,7 +20,7 @@ DECK_DSL_JSON = (
 
 @pytest.fixture
 def fake_render(monkeypatch):
-    async def _render(layout_irs, theme, out_path, node_bin="node"):
+    async def _render(layout_irs, theme, out_path, node_bin="node", job_dump_path=None):
         return RenderResult(ok=True, out_path=out_path, slide_count=len(layout_irs))
 
     monkeypatch.setattr(stages, "render_deck", _render)

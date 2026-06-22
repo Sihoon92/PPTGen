@@ -25,7 +25,7 @@ async def test_graph_ppt_mode_generates_deck(monkeypatch):
     import app.graph.nodes.ppt_nodes.stages as stages
     from app.ppt.renderer import RenderResult
 
-    async def _render(layout_irs, theme, out_path, node_bin="node"):
+    async def _render(layout_irs, theme, out_path, node_bin="node", job_dump_path=None):
         return RenderResult(ok=True, out_path=out_path, slide_count=len(layout_irs))
 
     monkeypatch.setattr(stages, "render_deck", _render)

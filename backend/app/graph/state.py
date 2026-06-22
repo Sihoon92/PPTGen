@@ -35,6 +35,7 @@ class PptState(TypedDict, total=False):
     layout_irs: list[dict]
     theme: dict
     output_path: str
+    render_report: dict  # render diagnostics (ok/job_file/error/stack/stderr) for the trace
     artifact_id: str
     issues: list[dict]
     # supervisor control
