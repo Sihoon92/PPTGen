@@ -34,7 +34,7 @@ class Settings(BaseSettings):
     def active_model(self) -> str:
         """현재 선택된 백엔드의 모델명 (트레이스/로깅용)."""
         if self.llm_backend == "internal":
-            return self.internal_llm_model
+            return self.internal_llm_model or "internal"
         return self.ollama_model
 
 

@@ -46,3 +46,21 @@ def test_active_model_follows_backend():
     assert ollama.active_model == "gemma3n:e4b"
     internal = Settings(_env_file=None, llm_backend="internal", internal_llm_model="corp-gpt")
     assert internal.active_model == "corp-gpt"
+
+
+def test_active_model_internal_fallback_when_model_unset(monkeypatch):
+    """active_model must not be empty when llm_backend=internal and INTERNAL_LLM_MODEL is unset."""
+    monkeypatch.setenv("LLM_BACKEND", "internal")
+    monkeypatch.delenv("INTERNAL_LLM_MODEL", raising=False)
+    from app.config import get_settings
+    get_settings.cache_clear()
+    assert get_settings().active_model == "internal"
+
+
+def test_active_model_ollama_default(monkeypatch):
+    """Ollama backend still returns the configured ollama model."""
+    monkeypatch.setenv("LLM_BACKEND", "ollama")
+    monkeypatch.setenv("OLLAMA_MODEL", "gemma3n:e4b")
+    from app.config import get_settings
+    get_settings.cache_clear()
+    assert get_settings().active_model == "gemma3n:e4b"

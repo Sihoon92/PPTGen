@@ -5,6 +5,7 @@ from langchain_core.messages import HumanMessage
 import app.graph.nodes.ppt_nodes.stages as stages
 from app.graph.nodes.ppt import build_ppt_subgraph
 from app.ppt.renderer import RenderResult
+from app.ppt.trace import TracingCallbackHandler, TraceWriter
 
 DECK_SPEC_JSON = (
     '{"title":"AI 전략","audience":"임원","goal":"설득","tone":"executive",'
@@ -54,3 +55,40 @@ async def test_subgraph_handles_non_json_gracefully(fake_render):
     assert not out.get("output_path")  # reset to "" then never rendered
     assert out.get("slide_dsls") == []
     assert "죄송" in out["messages"][-1].content
+
+
+@pytest.mark.asyncio
+async def test_subgraph_config_and_callbacks_reach_dsl_node(fake_render):
+    """Regression: config (callbacks + configurable.trace_run_id) must propagate into
+    the ppt subgraph's dsl node.  A missing ``config: RunnableConfig`` annotation on
+    ``dsl`` would silently drop the callbacks, leaving writer.llm_calls empty.
+
+    Assertion strategy: GenericFakeChatModel fires on_chat_model_start / on_llm_end
+    through LangChain's base generate machinery (confirmed empirically), so we can
+    assert that writer.llm_calls is non-empty and that the dsl node's two labelled
+    calls ("deck_spec" and "slide_planner") are captured.  This assertion genuinely
+    FAILS if config propagation breaks.
+    """
+    model = GenericFakeChatModel(messages=iter([DECK_SPEC_JSON, DECK_DSL_JSON]))
+    graph = build_ppt_subgraph(model)
+
+    writer = TraceWriter(session_id="wire-test", title="wiring regression")
+    handler = TracingCallbackHandler(writer)
+
+    await graph.ainvoke(
+        {"messages": [HumanMessage("설정 전파 테스트")], "session_id": "wire-test"},
+        config={
+            "configurable": {"trace_run_id": "wire-test"},
+            "callbacks": [handler],
+        },
+    )
+
+    # callbacks must have been fired (non-empty means config reached dsl node)
+    assert writer.llm_calls, "No LLM calls captured — config/callbacks did not reach dsl node"
+
+    labels = {rec.get("label") for rec in writer.llm_calls}
+    nodes = {rec.get("node") for rec in writer.llm_calls}
+
+    assert "dsl" in nodes, f"Expected node='dsl' in llm_calls, got nodes={nodes}"
+    assert "deck_spec" in labels, f"Expected label='deck_spec' in llm_calls, got labels={labels}"
+    assert "slide_planner" in labels, f"Expected label='slide_planner' in llm_calls, got labels={labels}"
