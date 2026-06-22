@@ -264,6 +264,7 @@ class TracingCallbackHandler(AsyncCallbackHandler):
     """
 
     def __init__(self, writer: TraceWriter) -> None:
+        super().__init__()
         self.writer = writer
         self._pending: dict[Any, dict] = {}  # run_id -> partial record
         self._seq = 0

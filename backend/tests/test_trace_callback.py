@@ -2,7 +2,7 @@ from types import SimpleNamespace
 
 from langchain_core.messages import HumanMessage
 
-from app.ppt.trace import TraceWriter, TracingCallbackHandler
+from app.ppt.trace import MAX_FIELD, TracingCallbackHandler, TraceWriter, _cap
 
 
 async def test_handler_records_prompt_and_raw():
@@ -52,3 +52,25 @@ async def test_handler_ignores_unmatched_end():
     # on_llm_end with no prior start must not raise and must not append.
     await h.on_llm_end(SimpleNamespace(generations=[[]], llm_output={}), run_id="ghost")
     assert w.llm_calls == []
+
+
+async def test_handler_ignores_unmatched_error():
+    w = TraceWriter("s1", "title")
+    h = TracingCallbackHandler(w)
+    await h.on_llm_error(RuntimeError("ghost"), run_id="no-such-run")
+    assert w.llm_calls == []
+
+
+def test_cap_truncates_oversized_text():
+    big = "x" * (MAX_FIELD + 1)
+    result = _cap(big)
+    assert len(result) == MAX_FIELD + len("…[truncated]")
+    assert result.endswith("…[truncated]")
+
+
+def test_cap_passes_through_within_limit():
+    assert _cap("hello") == "hello"
+
+
+def test_cap_handles_none():
+    assert _cap(None) == ""
