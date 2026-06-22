@@ -92,6 +92,8 @@ async def render_deck(
 
     stdout, stderr = await proc.communicate(job.encode("utf-8"))
     result = _parse_render_result(stdout, stderr, proc.returncode, out_path)
+    # _parse_render_result sees only the sidecar's JSON; when the renderer omits
+    # slide_count on success, fall back to the number of slides we sent.
     if result.ok and not result.slide_count:
         result.slide_count = len(layout_irs)
     return result

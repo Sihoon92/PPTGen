@@ -1,7 +1,5 @@
 import json
 
-import pytest
-
 from app.ppt.renderer import _parse_render_result, render_deck
 
 
@@ -30,12 +28,15 @@ def test_parse_success():
     r = _parse_render_result(stdout, b"", 0, "/x/out.pptx")
     assert r.ok is True
     assert r.slide_count == 3
+    assert r.stack is None
+    assert r.stderr is None
 
 
 def test_parse_non_json_stdout_falls_back_to_stderr():
     r = _parse_render_result(b"not json", b"real error text", 1, "/x/out.pptx")
     assert r.ok is False
     assert "real error text" in r.error
+    assert r.stderr == "real error text"
 
 
 async def test_render_deck_dumps_job_before_spawn(tmp_path):
