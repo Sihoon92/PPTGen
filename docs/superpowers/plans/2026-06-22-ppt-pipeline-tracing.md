@@ -985,3 +985,4 @@ Claude-Session: https://claude.ai/code/session_016pNBQ8ccuYB5tQmvALV26k"
   → handler가 호출(T3); `label_config`(T2) → stages/supervisor가 사용(T4); `render_report` 키(T4)
   → TraceWriter.handle이 읽음(T2). 명칭 일관. ✅
 - **Deviation note**: 파일의 노드 배열 키는 스펙의 `nodes` 대신 기존 `events` 유지(프론트 호환). 의도적.
+- **Deviation note (구현 중 정정)**: 노드 시그니처는 `config: dict`가 아니라 **`config: RunnableConfig`**(render_node/supervisor는 `= None` 기본값)로 작성해야 한다. LangGraph는 노드 콜러블의 두 번째 인자가 `RunnableConfig`로 **어노테이트된 경우에만** config(callbacks·configurable)를 주입한다. `dict`로 두면 callbacks/`trace_run_id`가 노드에 도달하지 않아 기능이 조용히 무력화된다(빈 `llm_calls`). Task 4에서 이 정정을 적용했고 그래프 레벨 배선 테스트로 가드한다.
