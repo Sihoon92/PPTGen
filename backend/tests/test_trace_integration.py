@@ -45,11 +45,15 @@ async def test_merged_trace_file_matches_schema(tmp_path, monkeypatch):
 
     data = json.loads((tmp_path / "s1" / "trace_latest.json").read_text(encoding="utf-8"))
     assert data["ok"] is False
-    assert data["backend"] and data["model"]
+    assert isinstance(data["backend"], str) and data["backend"]
+    assert isinstance(data["model"], str) and data["model"]
     assert [c["label"] for c in data["llm_calls"]] == ["deck_spec", "slide_planner"]
     assert data["llm_calls"][0]["prompt"].endswith("prompt 0")
+    assert data["llm_calls"][1]["prompt"].endswith("prompt 1")
     assert data["llm_calls"][1]["raw_response"] == "raw 1"
     assert data["render"]["stack"] == "S"
+    assert data["render"]["error"] == "boom"
     # render node event was promoted to error
-    render_ev = [e for e in data["events"] if e["node"] == "render"][0]
-    assert render_ev["status"] == "error"
+    render_evs = [e for e in data["events"] if e["node"] == "render"]
+    assert render_evs, "no render event found"
+    assert render_evs[0]["status"] == "error"
