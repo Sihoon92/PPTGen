@@ -1,6 +1,7 @@
 import httpx
 
 from app.config import Settings
+from app.net import resolve_ssl_verify
 
 
 async def check_llm(settings: Settings) -> dict:
@@ -43,7 +44,7 @@ async def check_internal_llm(settings: Settings) -> dict:
     if settings.internal_llm_api_key:
         headers["Authorization"] = f"Bearer {settings.internal_llm_api_key}"
     try:
-        async with httpx.AsyncClient(timeout=5.0) as client:
+        async with httpx.AsyncClient(timeout=5.0, verify=resolve_ssl_verify(settings)) as client:
             resp = await client.get(url, headers=headers)
         if resp.status_code >= 400:
             return {

@@ -15,6 +15,9 @@ class Settings(BaseSettings):
     internal_llm_base_url: str = ""
     internal_llm_api_key: str = ""
     internal_llm_model: str = ""
+    # 사내 TLS: CA 번들(.pem) 경로를 주면 검증 유지(권장). verify_ssl=false 면 검증 끔(비보안)
+    internal_llm_ca_bundle: str = ""
+    internal_llm_verify_ssl: bool = True
     # 사내 프록시 우회: true 면 startup 에서 HTTP(S)_PROXY 환경변수를 비워 직접 연결한다
     bypass_proxy: bool = False
     app_db_path: str = "./app.db"

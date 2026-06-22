@@ -88,6 +88,33 @@ async def test_check_internal_llm_connection_error(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_check_internal_llm_passes_verify_flag(monkeypatch):
+    captured = {}
+    real_init = httpx.AsyncClient.__init__
+
+    def fake_init(self, *a, **k):
+        captured["verify"] = k.get("verify")
+        real_init(self, *a, **k)
+
+    async def fake_get(self, url, *a, **k):
+        return httpx.Response(200, json={"data": [{"id": "corp-gpt"}]})
+
+    monkeypatch.setattr(httpx.AsyncClient, "__init__", fake_init)
+    monkeypatch.setattr(httpx.AsyncClient, "get", fake_get)
+
+    s = Settings(
+        _env_file=None,
+        llm_backend="internal",
+        internal_llm_base_url="https://llm.corp.com/v1",
+        internal_llm_model="corp-gpt",
+        internal_llm_verify_ssl=False,
+    )
+    result = await check_internal_llm(s)
+    assert result["ok"] is True
+    assert captured["verify"] is False
+
+
+@pytest.mark.asyncio
 async def test_check_internal_llm_missing_base_url():
     s = Settings(_env_file=None, llm_backend="internal")
     result = await check_internal_llm(s)

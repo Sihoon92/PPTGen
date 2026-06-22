@@ -40,3 +40,28 @@ def test_get_chat_model_internal_requires_base_url_and_model():
     s = Settings(_env_file=None, llm_backend="internal", internal_llm_model="corp-gpt")
     with pytest.raises(RuntimeError):
         get_chat_model(s)
+
+
+def test_get_chat_model_internal_default_verify_no_custom_client():
+    s = Settings(
+        _env_file=None,
+        llm_backend="internal",
+        internal_llm_base_url="https://llm.corp.com/v1",
+        internal_llm_model="corp-gpt",
+    )
+    model = get_chat_model(s)
+    # 기본(verify=True)에서는 커스텀 http 클라이언트를 주입하지 않는다
+    assert model.http_async_client is None
+
+
+def test_get_chat_model_internal_disabled_ssl_injects_client():
+    s = Settings(
+        _env_file=None,
+        llm_backend="internal",
+        internal_llm_base_url="https://llm.corp.com/v1",
+        internal_llm_model="corp-gpt",
+        internal_llm_verify_ssl=False,
+    )
+    model = get_chat_model(s)
+    # verify 를 끄면 커스텀 async httpx 클라이언트가 주입된다
+    assert model.http_async_client is not None

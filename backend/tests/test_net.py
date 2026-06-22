@@ -1,7 +1,7 @@
 import os
 
 from app.config import Settings
-from app.net import apply_proxy_bypass
+from app.net import apply_proxy_bypass, resolve_ssl_verify
 
 
 def test_apply_proxy_bypass_disabled_keeps_env(monkeypatch):
@@ -32,3 +32,21 @@ def test_apply_proxy_bypass_noop_when_no_proxy_set(monkeypatch):
 
 def test_bypass_proxy_defaults_false():
     assert Settings(_env_file=None).bypass_proxy is False
+
+
+def test_resolve_ssl_verify_default_true():
+    assert resolve_ssl_verify(Settings(_env_file=None)) is True
+
+
+def test_resolve_ssl_verify_false_when_disabled():
+    s = Settings(_env_file=None, internal_llm_verify_ssl=False)
+    assert resolve_ssl_verify(s) is False
+
+
+def test_resolve_ssl_verify_ca_bundle_takes_precedence():
+    s = Settings(
+        _env_file=None,
+        internal_llm_verify_ssl=False,  # CA 번들이 있으면 이건 무시되고 경로가 우선
+        internal_llm_ca_bundle="/etc/ssl/corp-ca.pem",
+    )
+    assert resolve_ssl_verify(s) == "/etc/ssl/corp-ca.pem"
