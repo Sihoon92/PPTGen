@@ -22,7 +22,7 @@ from app.graph.state import PptState
 from app.ppt.prompts import SUPERVISOR_INTENT_PROMPT
 from app.ppt.trace import label_config
 
-SupervisorNode = Callable[[PptState], Awaitable[dict]]
+SupervisorNode = Callable[[PptState, RunnableConfig | None], Awaitable[dict]]
 
 STAGES = ["dsl", "compiler", "render"]
 MAX_STEPS = 8

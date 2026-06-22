@@ -33,7 +33,7 @@ from app.ppt.trace import label_config
 from app.ppt.theme import resolve_theme
 from app.ppt.validator import validate_deck
 
-PptNode = Callable[[PptState], Awaitable[dict]]
+PptNode = Callable[[PptState, RunnableConfig | None], Awaitable[dict]]
 
 _FAIL_MSG = (
     "죄송해요, 이번 요청으로는 슬라이드를 생성하지 못했어요. "
@@ -55,7 +55,7 @@ def make_dsl_node(model: BaseChatModel) -> PptNode:
     one for the deck plan, one for the slide layouts. Both fall back gracefully.
     """
 
-    async def dsl(state: PptState, config: RunnableConfig) -> dict:
+    async def dsl(state: PptState, config: RunnableConfig = None) -> dict:
         brief = _last_human(state)
 
         # 1) Deck plan.
