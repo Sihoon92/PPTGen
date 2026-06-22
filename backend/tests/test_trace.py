@@ -44,6 +44,13 @@ def test_render_success_keeps_done_status():
         _result_event("render", {"artifact": {"slide_count": 2}, "output_path": "/x.pptx"}),
     )
     assert ev["status"] == "done"
+    assert w.render is None
+
+
+def test_ok_true_when_no_errors_and_no_render():
+    w = TraceWriter("s1", "title")
+    w.handle(("ppt",), _result_event("dsl", {"deck_spec": {"title": "t"}, "slide_dsls": [{}]}))
+    assert w._ok() is True
 
 
 async def test_flush_writes_extended_schema(tmp_path, monkeypatch):
@@ -60,3 +67,4 @@ async def test_flush_writes_extended_schema(tmp_path, monkeypatch):
     assert len(data["llm_calls"]) == 1
     assert data["render"] == {"attempted": True, "ok": False}
     assert "events" in data  # node array key preserved for the frontend
+    assert (tmp_path / "traces" / "latest.json").exists()
