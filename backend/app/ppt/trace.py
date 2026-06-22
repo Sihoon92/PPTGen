@@ -15,10 +15,13 @@ from __future__ import annotations
 import json
 import os
 import re
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
+
+from langchain_core.callbacks import AsyncCallbackHandler
 
 from app.config import get_settings
 
@@ -82,6 +85,43 @@ def _safe(value: Any, depth: int = 0) -> Any:
     if content is not None:  # langchain message-like
         return {"_type": type(value).__name__, "content": _safe(content, depth + 1)}
     return str(value)[:1000]
+
+
+MAX_FIELD = 256 * 1024  # per-field cap for prompt/raw_response (rarely hit locally)
+
+
+def _cap(text: str | None) -> str:
+    text = text or ""
+    return text if len(text) <= MAX_FIELD else text[:MAX_FIELD] + "…[truncated]"
+
+
+def _messages_to_text(messages: Any) -> str:
+    """Flatten on_chat_model_start's list[list[BaseMessage]] into prompt text."""
+    parts: list[str] = []
+    for batch in messages or []:
+        for m in batch or []:
+            parts.append(m if isinstance(m, str) else str(getattr(m, "content", "")))
+    return "\n".join(parts)
+
+
+def _llm_result_text(response: Any) -> str:
+    try:
+        gen = response.generations[0][0]
+        text = getattr(gen, "text", "") or ""
+        if text:
+            return text
+        msg = getattr(gen, "message", None)
+        return str(getattr(msg, "content", "")) if msg is not None else ""
+    except Exception:  # noqa: BLE001
+        return ""
+
+
+def _usage(response: Any) -> dict | None:
+    try:
+        out = response.llm_output or {}
+        return out.get("token_usage") or out.get("usage") or None
+    except Exception:  # noqa: BLE001
+        return None
 
 
 def _summary(node: str, out: dict) -> str:
@@ -212,3 +252,53 @@ class TraceWriter:
         if self.render is not None:
             return bool(self.render.get("ok"))
         return True
+
+
+class TracingCallbackHandler(AsyncCallbackHandler):
+    """Captures every LLM call (prompt + raw response) into a TraceWriter.
+
+    Attached per request via ``config["callbacks"]``. LangChain delivers the node
+    name as ``metadata["langgraph_node"]``; nodes add ``metadata["trace_label"]``
+    (via ``label_config``) to name each call. Callback exceptions are swallowed by
+    LangChain's callback manager, so a failure here never breaks the run.
+    """
+
+    def __init__(self, writer: TraceWriter) -> None:
+        self.writer = writer
+        self._pending: dict[Any, dict] = {}  # run_id -> partial record
+        self._seq = 0
+
+    async def on_chat_model_start(
+        self, serialized, messages, *, run_id, metadata=None, **kwargs
+    ) -> None:
+        meta = metadata or {}
+        self._pending[run_id] = {
+            "node": meta.get("langgraph_node"),
+            "label": meta.get("trace_label"),
+            "model": (serialized or {}).get("name") or get_settings().active_model,
+            "prompt": _cap(_messages_to_text(messages)),
+            "started_at": datetime.now().isoformat(timespec="seconds"),
+            "_start": time.monotonic(),
+        }
+
+    async def on_llm_end(self, response, *, run_id, **kwargs) -> None:
+        rec = self._pending.pop(run_id, None)
+        if rec is not None:
+            self._finalize(rec, _llm_result_text(response), _usage(response), "ok", None)
+
+    async def on_llm_error(self, error, *, run_id, **kwargs) -> None:
+        rec = self._pending.pop(run_id, None)
+        if rec is not None:
+            self._finalize(rec, "", None, "error", str(error))
+
+    def _finalize(self, rec, raw, token_usage, status, error) -> None:
+        self._seq += 1
+        start = rec.pop("_start", None)
+        rec["seq"] = self._seq
+        rec["ended_at"] = datetime.now().isoformat(timespec="seconds")
+        rec["latency_ms"] = int((time.monotonic() - start) * 1000) if start else None
+        rec["raw_response"] = _cap(raw)
+        rec["token_usage"] = token_usage
+        rec["status"] = status
+        rec["error"] = error
+        self.writer.add_llm_call(rec)
