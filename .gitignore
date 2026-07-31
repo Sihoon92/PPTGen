@@ -18,6 +18,8 @@ ENV/
 # Environment / secrets
 .env
 .env.*
+!.env.example
+!backend/.env.example
 
 # IDE / editor
 .idea/
@@ -30,3 +32,12 @@ Thumbs.db
 
 # Generated PPTX output (uncomment if generated files shouldn't be tracked)
 # *.pptx
+
+# Node / frontend
+node_modules/
+frontend/node_modules/
+frontend/dist/
+
+# SQLite conversation data — never commit DB files
+app.db*
+backend/app.db*
