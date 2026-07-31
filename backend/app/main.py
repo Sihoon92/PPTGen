@@ -1,3 +1,4 @@
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -39,6 +40,13 @@ def get_app_state(request: Request) -> AppState:
 
 def create_app() -> FastAPI:
     settings = get_settings()
+    # 파이프라인 진단 로그(app.ppt)가 콘솔에 보이도록 보장한다. uvicorn 등이 이미 루트
+    # 핸들러를 설치했다면 건드리지 않아 중복 출력을 피한다.
+    if not logging.getLogger().handlers:
+        logging.basicConfig(
+            level=logging.INFO,
+            format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+        )
     app = FastAPI(title="PPTGen Backend", lifespan=lifespan)
     app.add_middleware(
         CORSMiddleware,
